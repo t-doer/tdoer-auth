@@ -14,26 +14,28 @@ import javax.validation.constraints.NotBlank;
 
 @RestController
 @Slf4j
-@RequestMapping("/auth")
+@RequestMapping("")
 public class TokenController {
-    @GetMapping("/{token}")
+    @GetMapping("/auth/{token}")
     GenericResponseData<OAuth2Authentication> loadAuthentication(
             @PathVariable("token") @NotBlank String token){
-        // TODO
+        //TODO
         return null;
     }
 
     @GetMapping("/token/{token}")
     GenericResponseData<OAuth2AccessToken> readAccessToken(
             @PathVariable("token") @NotBlank String token){
-        // TODO
+        //TODO
         return null;
     }
 
-    @GetMapping("/refreshToken/{token}")
+    @GetMapping("/token/refresh/{token}")
     GenericResponseData<OAuth2RefreshToken> readRefreshTokenForToken(
             @PathVariable("token") @NotBlank String token){
         //TODO
         return null;
     }
 }
+
+
