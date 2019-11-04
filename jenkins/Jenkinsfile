@@ -1,0 +1,196 @@
+node {
+    // Note: Environment variables "BRANCH_TAG" and "PROFILE" are from Jenkins build parameters
+    // "BRANCH_TAG" should follow the pattern, say, "v1.0.0" and "PROFILE" should be one of the
+    // values: prod, dev, sit, uat, pre
+
+
+    // Image Version based on environment variable "BRANCH_TAG", if "BRANCH_TAG" contains "/",
+    // say, "origin/hotfix", image version will be the part after "/", plus "." and build time, "hotfix.20190301132900"
+
+    def tag = env.BRANCH_TAG
+    def idx = tag.lastIndexOf("/")
+    if(idx != -1){
+        tag = tag.substring(idx + 1)
+    }
+    def VERSION = tag + "." + new Date().format('yyyyMMddHHmmss')
+
+    // For Kubenetes deployment template
+    env.VERSION = VERSION
+
+    // --------------------------------------------------------------------
+    // Part I: Codes
+    // --------------------------------------------------------------------
+
+    // GitLab CredentialsId, which is set in Jenkins Credentials
+    def gitCredentialsId = "07f86800-af35-4265-a669-6a02f57416f7"
+
+    // Code Repository Url
+    def codeRepoUrl = "http://gitlab.tdoer.cn/common/tdoer-auth.git"
+
+
+    // --------------------------------------------------------------------
+    // Part II: Docker Image
+    // --------------------------------------------------------------------
+
+    // Docker Registry CredentialsId, which is set in Jenkins Credentials
+    def regCredentialsId = "c1e23cd6-c5b0-4a43-b59a-ea0ccb73cdd9"
+
+    // Docker Registry
+    def dockerRegistry = "http://harbor.tdoer.cn"
+
+    // --------------------------------------------------------------------
+    // Part III: Kubernetes Deployment
+    // --------------------------------------------------------------------
+
+    // Default is pre-cluster, select kubectl config based on profile
+    def kubeconfigId = "91a72718-67d1-4b7f-b506-7f9279237f3e"
+    if(PROFILE == 'prod'){
+        // prod-cluster
+        kubeconfigId = "34ac277a-8f6c-459b-bf50-083208b21d69"
+    }
+
+    // Deployment Repository Url
+    def deploymentRepoUrl = "http://gitlab.tdoer.cn/docker/devops.git"
+
+    // Project Group Name
+    def groupName = "common"
+
+    // Deployment Project Name
+    def deploymentProjectName = "tdoer-auth"
+
+    // Deployment Files
+    def deploymentFiles = "${deploymentProjectName}-configmap-${PROFILE}.yml,${deploymentProjectName}-deployment-${PROFILE}.yml"
+
+    // --------------------------------------------------------------------
+    // Part VI: Email Notification
+    // --------------------------------------------------------------------
+
+    // Production's Rollout Notification
+    def prodTo = "ying.zhou@tdoer.cn,jun.ke@tdoer.cn,maodong.wang@tdoer.cn"
+    def prodCC = "likai.hu@tdoer.cn,conghui.ran@tdoer.cn,xiaojun.su@tdoer.cn"
+
+    // Other Rnvironments's Rollout Notification
+    def othersTo = "ying.zhou@tdoer.cn,jun.ke@tdoer.cn,maodong.wang@tdoer.cn,li.ling@tdoer.cn"
+    def othersCC = "likai.hu@tdoer.cn"
+
+    // Select emails based on profile
+    def emailTo = prodTo
+    def emailCC = prodCC
+    if (env.PROFILE != "prod"){
+        emailTo = othersTo
+        emailCC = othersCC
+    }
+
+    // --------------------------------------------------------------------
+    // Part VI: Misc
+    // --------------------------------------------------------------------
+    def codesRelativeTargetDir = "codes"
+    def devopsRelativeTargetDir = "devops"
+
+    try {
+        // pull and build war
+        stage('Build') {
+            def repoUrl = "${codeRepoUrl}"
+
+            echo "step 1: check out codes from repo: '${repoUrl}', branch or tag: '${BRANCH_TAG}'"
+            checkout(
+                    changelog: false,
+                    poll: false,
+                    scm: [$class: 'GitSCM',
+                          branches: [[name: env.BRANCH_TAG]],
+                          browser: [$class: 'GitLab', repoUrl: repoUrl, version: "11.0"],
+                          doGenerateSubmoduleConfigurations: false,
+                          extensions: [
+                                  [$class: 'CleanBeforeCheckout'],
+                                  [$class: 'RelativeTargetDirectory', relativeTargetDir: codesRelativeTargetDir]
+                          ],
+                          submoduleCfg: [],
+                          userRemoteConfigs: [
+                                  [credentialsId: gitCredentialsId,
+                                   url: repoUrl
+                                  ]
+                          ]
+                    ]
+            )
+
+            echo "step 2: Build JAR"
+            dir("${codesRelativeTargetDir}"){
+                sh "mvn clean install -Dmaven.test.skip=true"
+            }
+        }
+
+        // build and push docker image
+        stage('Image') {
+            echo "step 1: Login docker registry: ${dockerRegistry}"
+            docker.withRegistry(dockerRegistry, regCredentialsId) {
+
+                echo "step 2: build and push docker image"
+                dir("${codesRelativeTargetDir}/docker"){
+                    sh "./build.sh ${VERSION}"
+                }
+            }
+        }
+
+        stage('Rollout') {
+            def rev = "master" // The branch or tag to check out
+            def repoUrl = "${deploymentRepoUrl}"
+
+
+            echo "step 1: check out development files from repo: '${repoUrl}', branch or tag: '${rev}'"
+            checkout(
+                    changelog: false,
+                    poll: false,
+                    scm: [$class: 'GitSCM',
+                          branches: [[name: rev]],
+                          browser: [$class: 'GitLab', repoUrl: repoUrl, version: "11.0"],
+                          doGenerateSubmoduleConfigurations: false,
+                          extensions: [
+                                  [$class: 'CleanBeforeCheckout'],
+                                  [$class: 'RelativeTargetDirectory', relativeTargetDir: devopsRelativeTargetDir],
+                                  [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: "${groupName}/${deploymentProjectName}"]]]
+                          ],
+                          submoduleCfg: [],
+                          userRemoteConfigs: [
+                                  [credentialsId: gitCredentialsId,
+                                   url: repoUrl
+                                  ]
+                          ]
+                    ]
+            )
+
+            echo "step 2: Deploy to kubernetes"
+            dir("${devopsRelativeTargetDir}/${groupName}/${deploymentProjectName}"){
+                kubernetesDeploy(
+                        configs: deploymentFiles,
+                        kubeConfig: [path: ''],
+                        kubeconfigId: kubeconfigId,
+                        secretName: '',
+                        ssh: [sshCredentialsId: '*', sshServer: ''],
+                        textCredentials: [certificateAuthorityData: '', clientCertificateData: '', clientKeyData: '', serverUrl: 'https://']
+                )
+            }
+
+            echo "step 3: Notify"
+            echo "Great, anything is fine! Rollout duration: ${currentBuild.durationString}"
+            emailext(
+                    to: emailTo,
+                    cc: emailCC,
+                    recipientProviders: [[$class: 'DevelopersRecipientProvider']],
+                    subject: "[ROLLOUT] ${env.JOB_NAME} ${env.BRANCH_TAG} is rolled out successfully!",
+                    body: """Congratulations, anything is fine! Rollout duration is ${currentBuild.durationString}."""
+            )
+        }
+    }
+    catch (exc) {
+        echo 'Ooops..., somethings is wrong'
+        echo "Failed to build Job '${env.JOB_NAME}', see ${env.BUILD_URL}."
+        emailext(
+                to: emailTo,
+                cc: emailCC,
+                recipientProviders: [[$class: 'DevelopersRecipientProvider']],
+                subject: "[ROLLOUT] ${env.JOB_NAME} ${env.BRANCH_TAG} failed!",
+                body: """Please go to ${env.BUILD_URL} and verify the build."""
+        )
+        throw exc
+    }
+}
