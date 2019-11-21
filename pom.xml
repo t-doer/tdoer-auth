@@ -41,19 +41,15 @@
     <dependencies>
         <dependency>
             <groupId>com.tdoer</groupId>
-            <artifactId>tdoer-oauth-config</artifactId>
-            <version>1.0.1-SNAPSHOT</version>
+            <artifactId>tdoer-security</artifactId>
+            <version>0.0.3-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.tdoer</groupId>
             <artifactId>tdoer-service-interfaces</artifactId>
             <version>1.0.2-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>com.tdoer</groupId>
-            <artifactId>tdoer-security</artifactId>
-            <version>0.0.2-RELEASE</version>
-        </dependency>
+
         <!--<dependency>-->
             <!--<groupId>com.tdoer.common</groupId>-->
             <!--<artifactId>common-base</artifactId>-->
@@ -138,7 +134,11 @@
             <groupId>io.swagger</groupId>
             <artifactId>swagger-models</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>ru.yandex.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>0.2</version>
+        </dependency>
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
