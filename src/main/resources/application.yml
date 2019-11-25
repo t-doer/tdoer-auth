@@ -135,3 +135,6 @@ feign:
       default:
         connectTimeout: 30000
         readTimeout: 30000
+tdoer:
+  auth:
+    loginPage: /passport.html

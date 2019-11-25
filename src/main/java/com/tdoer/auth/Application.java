@@ -35,6 +35,7 @@ import org.springframework.context.annotation.ComponentScan;
         "com.tdoer.auth", // local component
         "com.tdoer.interfaces.config", // Feign configuration
         "com.tdoer.delegate.bedrock", // Bedrock service providers
+        "com.tdoer.delegate.user" // User service
 })
 @EnableFeignClients(basePackages= {
         "com.tdoer.interfaces.bedrock", // Bedrock services to "tdoer-bedrock-serviceprovider"

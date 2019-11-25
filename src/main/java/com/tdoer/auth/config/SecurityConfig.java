@@ -18,13 +18,14 @@ package com.tdoer.auth.config;
 
 import com.tdoer.bedrock.security.CloudPasswordEncoder;
 import com.tdoer.bedrock.security.PasswordEncoderRegistry;
+import com.tdoer.security.configure.EnableAuthorizationService;
 import com.tdoer.security.configure.EnableManagementProtection;
 import com.tdoer.security.crypto.password.MD5PasswordEncoder;
-import com.tdoer.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
@@ -42,7 +43,7 @@ import org.springframework.security.web.firewall.HttpFirewall;
 @Configuration
 @EnableWebSecurity
 @EnableManagementProtection
-@EnableAuthorizationServer
+@EnableAuthorizationService
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     // From auto component scan in the project
@@ -68,6 +69,16 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         return firewall;
     }
 
+    @Bean
+    public AuthenticationManager authenticationManager(){
+        try {
+            return authenticationManagerBean();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception { // @formatter:off
         http
@@ -88,9 +99,17 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .loginProcessingUrl("/oauth/login");
     } // @formatter:on
 
+    /**
+     * Configure authentication manager for username/password authentication
+     *
+     * @param auth
+     * @throws Exception
+     */
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailsService).passwordEncoder(new CloudPasswordEncoder(passwordEncoderRegistry()));
+        auth
+                .userDetailsService(userDetailsService)
+                .passwordEncoder(new CloudPasswordEncoder(passwordEncoderRegistry()));
     }
 
     @Override
